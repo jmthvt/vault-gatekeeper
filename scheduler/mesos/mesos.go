@@ -130,6 +130,7 @@ func NewMesosScheduler(master string) (scheduler.Scheduler, error) {
 }
 
 func (m *mesosScheduler) LookupTask(taskId string) (scheduler.Task, error) {
+	// Allow for configurable timeout here
 	mesosTask, framework, slaveHost, err := m.getMesosTask(taskId)
 	for i := time.Duration(0); i < 3 && err == nil && len(mesosTask.Statuses) == 0; i++ {
 		time.Sleep((500 + 250*i) * time.Millisecond)
