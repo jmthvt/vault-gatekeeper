@@ -136,11 +136,11 @@ func (m *mesosScheduler) LookupTask(taskId string) (scheduler.Task, error) {
 		time.Sleep((500 + 250*i) * time.Millisecond)
 		mesosTask, framework, slaveHost, err = m.getMesosTask(taskId)
 	}
-	runningTime := time.Unix(0, 0)
-	if len(mesosTask.Statuses) > 0 {
-		// https://github.com/apache/mesos/blob/a61074586d778d432ba991701c9c4de9459db897/src/webui/master/static/js/controllers.js#L148
-		runningTime = time.Unix(0, int64(mesosTask.Statuses[0].Timestamp*1000000000))
+	if len(mesosTask.Statuses) == 0 {
+		return nil, scheduler.ErrTaskStatusNotFound
 	}
+	// https://github.com/apache/mesos/blob/a61074586d778d432ba991701c9c4de9459db897/src/webui/master/static/js/controllers.js#L148
+	runningTime := time.Unix(0, int64(mesosTask.Statuses[0].Timestamp*1000000000))
 
 	var ip net.IP
 	if err == nil {

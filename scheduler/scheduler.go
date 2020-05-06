@@ -7,6 +7,7 @@ import (
 )
 
 var ErrTaskNotFound = errors.New("Task not found.")
+var ErrTaskStatusNotFound = errors.New("Task status not found.")
 
 type Task interface {
 	Id() string
