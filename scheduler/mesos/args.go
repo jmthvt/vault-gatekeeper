@@ -23,5 +23,5 @@ func Args() []scheduler.Args {
 }
 
 func newMesosScheduler() (scheduler.Scheduler, error) {
-	return NewMesosScheduler(viper.GetString("mesos-master"))
+	return NewMesosScheduler(viper.GetString("mesos-master"), viper.GetDuration("task-grace"))
 }

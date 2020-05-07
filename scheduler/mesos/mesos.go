@@ -85,7 +85,8 @@ var errUnknownScheme = errors.New("Unknown mesos scheme.")
 var errMesosUnreachable = errors.New("No reachable mesos masters.")
 
 type mesosScheduler struct {
-	Master string
+	Master      string
+	MaxTaskLife time.Duration
 }
 
 type task struct {
@@ -121,8 +122,8 @@ func (t task) StartTime() time.Time {
 	return t.startTime
 }
 
-func NewMesosScheduler(master string) (scheduler.Scheduler, error) {
-	m := &mesosScheduler{master}
+func NewMesosScheduler(master string, maxTaskLife time.Duration) (scheduler.Scheduler, error) {
+	m := &mesosScheduler{master, maxTaskLife}
 	if _, _, err := m.getMesosMaster(); err != nil {
 		return nil, err
 	}
@@ -130,16 +131,32 @@ func NewMesosScheduler(master string) (scheduler.Scheduler, error) {
 }
 
 func (m *mesosScheduler) LookupTask(taskId string) (scheduler.Task, error) {
+	// Allow to attempt to get the task status up to the end of the grace period
+	// anything after that will be rejected by gatekeeper at the age check
+	// time.Since(task.StartTime()) >= g.config.MaxTaskLife
+	end := time.Now().Add(m.MaxTaskLife)
 	mesosTask, framework, slaveHost, err := m.getMesosTask(taskId)
-	for i := time.Duration(0); i < 3 && err == nil && len(mesosTask.Statuses) == 0; i++ {
+	i := time.Duration(0)
+	for {
+		// Stop the retry loop if we have a valid response and status
+		// information exists.
+		if err == nil && len(mesosTask.Statuses) > 0 {
+			break
+		}
+		if time.Now().After(end) {
+			return nil, scheduler.ErrTaskNotFound
+		}
 		time.Sleep((500 + 250*i) * time.Millisecond)
 		mesosTask, framework, slaveHost, err = m.getMesosTask(taskId)
+		i++
 	}
-	runningTime := time.Unix(0, 0)
-	if len(mesosTask.Statuses) > 0 {
-		// https://github.com/apache/mesos/blob/a61074586d778d432ba991701c9c4de9459db897/src/webui/master/static/js/controllers.js#L148
-		runningTime = time.Unix(0, int64(mesosTask.Statuses[0].Timestamp*1000000000))
+
+	// If we've exceeded the grace period and still don't have status information
+	if len(mesosTask.Statuses) == 0 {
+		return nil, scheduler.ErrTaskStatusNotFound
 	}
+	// https://github.com/apache/mesos/blob/a61074586d778d432ba991701c9c4de9459db897/src/webui/master/static/js/controllers.js#L148
+	runningTime := time.Unix(0, int64(mesosTask.Statuses[0].Timestamp*1000000000))
 
 	var ip net.IP
 	if err == nil {
