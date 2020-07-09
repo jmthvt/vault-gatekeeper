@@ -432,9 +432,10 @@ func (g *Gatekeeper) GetSecretId(roleName string, authToken string) (string, err
 }
 
 func (g *Gatekeeper) RequestToken(providerKey string, taskId string, requestedRole string, remoteAddr string) (string, time.Duration, error) {
+	startTime := time.Now()
 	g.metrics.Request()
 	if !g.IsUnsealed() {
-		g.metrics.Denied()
+		g.metrics.Denied(startTime)
 		return "", 0, ErrSealed
 	}
 	if providerKey == "" {
@@ -452,7 +453,7 @@ func (g *Gatekeeper) RequestToken(providerKey string, taskId string, requestedRo
 	if provider, ok := g.Schedulers[providerKey]; ok {
 		if task, err := provider.LookupTask(taskId); err == nil {
 			if time.Since(task.StartTime()) >= g.config.MaxTaskLife {
-				g.metrics.Denied()
+				g.metrics.Denied(startTime)
 				return "", 0, ErrTaskNotFresh
 			}
 			if g.config.HostCheck {
@@ -495,7 +496,7 @@ func (g *Gatekeeper) RequestToken(providerKey string, taskId string, requestedRo
 							}
 						}
 						if !allowed {
-							g.metrics.Denied()
+							g.metrics.Denied(startTime)
 							return "", 0, ErrRoleMismatch
 						}
 					}
@@ -516,41 +517,41 @@ func (g *Gatekeeper) RequestToken(providerKey string, taskId string, requestedRo
 								Wrap:     100 * time.Minute,
 							}
 							if token, err := uns.Token(); err == nil {
-								g.metrics.Success()
+								g.metrics.Success(startTime)
 								return token, uns.Wrap, nil
 							} else {
-								g.metrics.Denied()
+								g.metrics.Denied(startTime)
 								return "", 0, err
 							}
 						} else {
 							log.Warnf("recieved error when trying to get the secret id for role %s: %v", roleName, err)
-							g.metrics.Failed()
+							g.metrics.Failed(startTime)
 							return "", 0, err
 						}
 					} else if err == ErrNoSuchRole {
-						g.metrics.Denied()
+						g.metrics.Denied(startTime)
 						return "", 0, ErrNoSuchRole
 					} else {
-						g.metrics.Failed()
+						g.metrics.Failed(startTime)
 						log.Warnf("recieved error when trying to get the role id for role %s: %v", roleName, err)
 						return "", 0, err
 					}
 				} else if err == usagestore.ErrPutLimitExceeded {
-					g.metrics.Denied()
+					g.metrics.Denied(startTime)
 					return "", 0, ErrMaxTokensGiven
 				} else {
-					g.metrics.Denied()
+					g.metrics.Denied(startTime)
 					return "", 0, err
 				}
 			} else {
-				g.metrics.Denied()
+				g.metrics.Denied(startTime)
 				return "", 0, ErrNoPolicy
 			}
 		} else if err == scheduler.ErrTaskNotFound {
-			g.metrics.Denied()
+			g.metrics.Denied(startTime)
 			return "", 0, err
 		} else {
-			g.metrics.Denied()
+			g.metrics.Denied(startTime)
 			return "", 0, err
 		}
 	} else {

@@ -6,7 +6,7 @@ import (
 	"time"
 
 	log "github.com/sirupsen/logrus"
-	"gopkg.in/alexcesaro/statsd.v2"
+	statsd "gopkg.in/alexcesaro/statsd.v2"
 )
 
 type metrics struct {
@@ -59,23 +59,26 @@ func (m *metrics) Request() {
 	}
 }
 
-func (m *metrics) Success() {
+func (m *metrics) Success(t time.Time) {
 	atomic.AddInt32(&m.g.Stats.Successful, 1)
 	if m.statsd.c != nil {
+		m.statsd.c.Timing("latency.success", time.Since(t).Milliseconds())
 		m.statsd.c.Count("success", 1)
 	}
 }
 
-func (m *metrics) Denied() {
+func (m *metrics) Denied(t time.Time) {
 	atomic.AddInt32(&m.g.Stats.Denied, 1)
 	if m.statsd.c != nil {
+		m.statsd.c.Timing("latency.denied", time.Since(t).Milliseconds())
 		m.statsd.c.Count("denied", 1)
 	}
 }
 
-func (m *metrics) Failed() {
+func (m *metrics) Failed(t time.Time) {
 	atomic.AddInt32(&m.g.Stats.Failed, 1)
 	if m.statsd.c != nil {
+		m.statsd.c.Timing("latency.failed", time.Since(t).Milliseconds())
 		m.statsd.c.Count("failed", 1)
 	}
 }
